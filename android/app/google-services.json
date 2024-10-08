@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "783122661202",
+    "project_id": "histo-patho-app",
+    "storage_bucket": "histo-patho-app.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:783122661202:android:73be479b88233ff2dc448b",
+        "android_client_info": {
+          "package_name": "com.histo_patho.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDoUOQ8pdulyPxp9zWeLZutHBvtnOgy3L0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
