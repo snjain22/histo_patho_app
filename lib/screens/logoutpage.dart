@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:histo_patho_app/screens/home_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:histo_patho_app/screens/signin_signup/home_screen.dart';
 
 class LogoutPage extends StatefulWidget {
   @override
@@ -15,12 +16,30 @@ class _LogoutPageState extends State<LogoutPage> {
   }
 
   Future<void> _logout() async {
-    await FirebaseAuth.instance.signOut();
-    await Future.delayed(Duration(seconds: 2)); // Show logout message for 2 seconds
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => HomeScreen()),
-          (Route<dynamic> route) => false,
-    );
+    try {
+      // Sign out from Firebase
+      await FirebaseAuth.instance.signOut();
+
+      // Clear SharedPreferences
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', false);
+      await prefs.remove('userId');
+
+      // Wait for 2 seconds to show the logout message
+      await Future.delayed(Duration(seconds: 2));
+
+      // Navigate to HomeScreen and remove all previous routes
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => HomeScreen()),
+            (Route<dynamic> route) => false,
+      );
+    } catch (e) {
+      print("Error during logout: $e");
+      // Handle any errors that occur during logout
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("An error occurred during logout. Please try again.")),
+      );
+    }
   }
 
   @override
@@ -30,10 +49,10 @@ class _LogoutPageState extends State<LogoutPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
-            Icon(Icons.check_circle, color: Colors.green, size: 100),
+            Icon(Icons.check_circle, color: Colors.greenAccent, size: 100),
             SizedBox(height: 20),
             Text(
-              'Successfully Logged Out',
+              'Logging Out',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 20),

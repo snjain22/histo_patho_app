@@ -76,21 +76,23 @@ class _QuizListScreenState extends State<QuizListScreen> {
                         }
 
                         bool instantResults = false;
+                        int attemptsAllowed = 1;
                         if (quizSnapshot.hasData && quizSnapshot.data!.exists) {
                           var fullQuizData = quizSnapshot.data!.data() as Map<String, dynamic>;
                           instantResults = fullQuizData['instantResults'] ?? false;
+                          attemptsAllowed = fullQuizData['attemptsAllowed'] ?? 1;
                         }
+
+                        bool canAttempt = quizData['attempts'] < attemptsAllowed;
 
                         return ListTile(
                           title: Text(quizData['title']),
                           subtitle: Text(instantResults
-                              ? 'Score: ${quizData['score']}/${quizData['totalQuestions']} | Attempts: ${quizData['attempts']}'
-                              : 'Attempts: ${quizData['attempts']} | Results pending'),
-                          trailing: quizData['isCompleted']
-                              ? Icon(Icons.check_circle, color: Colors.blue)
-                              : Icon(Icons.play_arrow, color: Colors.green),
+                              ? 'Score: ${quizData['score']}/${quizData['totalQuestions']} | Attempts: ${quizData['attempts']}/$attemptsAllowed'
+                              : 'Attempts: ${quizData['attempts']}/$attemptsAllowed | Results pending'),
+                          trailing: _getTrailingIcon(quizData, attemptsAllowed),
                           onTap: () {
-                            if (!quizData['isCompleted']) {
+                            if (!quizData['isCompleted'] && canAttempt) {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -101,7 +103,7 @@ class _QuizListScreenState extends State<QuizListScreen> {
                                   ),
                                 ),
                               );
-                            } else {
+                            } else if (quizData['isCompleted']) {
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -113,6 +115,10 @@ class _QuizListScreenState extends State<QuizListScreen> {
                                     isTeacherOrAdmin: false,
                                   ),
                                 ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Maximum attempts reached for this quiz')),
                               );
                             }
                           },
@@ -127,6 +133,16 @@ class _QuizListScreenState extends State<QuizListScreen> {
         ],
       ),
     );
+  }
+
+  Widget _getTrailingIcon(Map<String, dynamic> quizData, int attemptsAllowed) {
+    if (quizData['isCompleted']) {
+      return Icon(Icons.check_circle, color: Colors.blue);
+    } else if (quizData['attempts'] >= attemptsAllowed) {
+      return Icon(Icons.block, color: Colors.red);
+    } else {
+      return Icon(Icons.play_arrow, color: Colors.green);
+    }
   }
 
   void _findAndStartQuiz(BuildContext context, String code) async {
@@ -151,6 +167,27 @@ class _QuizListScreenState extends State<QuizListScreen> {
         if (quizDoc.exists) {
           var quizData = quizDoc.data() as Map<String, dynamic>;
           if (quizData['isEnabled']) {
+            // Check if the user has already attempted this quiz
+            DocumentSnapshot userQuizDoc = await FirebaseFirestore.instance
+                .collection('user_quizzes')
+                .doc(userId)
+                .collection('quizzes')
+                .doc(quizId)
+                .get();
+
+            if (userQuizDoc.exists) {
+              var userQuizData = userQuizDoc.data() as Map<String, dynamic>;
+              int attemptsAllowed = quizData['attemptsAllowed'] ?? 1;
+              int attempts = userQuizData['attempts'] ?? 0;
+
+              if (attempts >= attemptsAllowed) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Maximum attempts reached for this quiz')),
+                );
+                return;
+              }
+            }
+
             Navigator.push(
               context,
               MaterialPageRoute(

@@ -12,6 +12,97 @@ class QuizDetailsScreen extends StatelessWidget {
 
   QuizDetailsScreen({required this.quizId, required this.teacherId, this.isAdmin = false});
 
+  Future<void> _deleteQuiz(BuildContext context) async {
+    // Show a confirmation dialog
+    bool confirmDelete = await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Delete Quiz'),
+          content: Text('Are you sure you want to delete this quiz? This action cannot be undone.'),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Cancel'),
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+            TextButton(
+              child: Text('Delete'),
+              onPressed: () => Navigator.of(context).pop(true),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmDelete == true) {
+      // Navigate back to the previous screen immediately
+      Navigator.of(context).pop();
+
+      // Show a "deleting" message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Deleting quiz...')),
+      );
+
+      try {
+        // Get the quiz document to retrieve the code
+        DocumentSnapshot quizDoc = await FirebaseFirestore.instance
+            .collection('quizzes')
+            .doc(teacherId)
+            .collection('quizzes')
+            .doc(quizId)
+            .get();
+
+        String quizCode = (quizDoc.data() as Map<String, dynamic>)['code'];
+
+        // Get all participants who have attempted this quiz
+        QuerySnapshot participantsSnapshot = await FirebaseFirestore.instance
+            .collection('quizzes')
+            .doc(teacherId)
+            .collection('quizzes')
+            .doc(quizId)
+            .collection('participants')
+            .get();
+
+        // Delete the quiz from user_quizzes for all participants
+        List<Future> userQuizDeletions = participantsSnapshot.docs.map((participantDoc) {
+          return FirebaseFirestore.instance
+              .collection('user_quizzes')
+              .doc(participantDoc.id)
+              .collection('quizzes')
+              .doc(quizId)
+              .delete();
+        }).toList();
+
+        // Wait for all user_quizzes deletions to complete
+        await Future.wait(userQuizDeletions);
+
+        // Delete the quiz document
+        await FirebaseFirestore.instance
+            .collection('quizzes')
+            .doc(teacherId)
+            .collection('quizzes')
+            .doc(quizId)
+            .delete();
+
+        // Delete the quiz code mapping
+        await FirebaseFirestore.instance
+            .collection('quiz_codes')
+            .doc(quizCode)
+            .delete();
+
+        // Show a success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Quiz deleted successfully')),
+        );
+      } catch (e) {
+        print('Error deleting quiz: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting quiz')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -47,6 +138,7 @@ class QuizDetailsScreen extends StatelessWidget {
                         Text('Date Created: ${quiz['createdAt'].toDate().toString()}'),
                         Text('Access Code: ${quiz['code']}', style: TextStyle(fontWeight: FontWeight.bold)),
                         Text('Instant Results: ${quiz['instantResults'] ? 'Yes' : 'No'}'),
+                        Text('Attempts Allowed: ${quiz['attemptsAllowed']}'),
                       ],
                     ),
                   ),
@@ -112,6 +204,17 @@ class QuizDetailsScreen extends StatelessWidget {
                                   .doc(quizId)
                                   .update({'isEnabled': value});
                             },
+                          ),
+                        ),
+                        SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          icon: Icon(Icons.delete, color: Color.fromRGBO(255, 255, 255, 1.0),),
+                          label: Text('Delete Quiz', style: TextStyle(color: Color.fromRGBO(255, 255, 255, 1.0))),
+                          onPressed: () => _deleteQuiz(context),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red[900],
+                            padding: EdgeInsets.symmetric(vertical: 12),
+                            textStyle: TextStyle(fontSize: 16),
                           ),
                         ),
                       ],

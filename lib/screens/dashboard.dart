@@ -4,7 +4,7 @@ import 'package:histo_patho_app/screens/logoutpage.dart';
 import 'package:histo_patho_app/screens/profilepage.dart';
 import 'package:histo_patho_app/screens/quiz/quiz_list_screen.dart';
 import 'package:histo_patho_app/utils/coursecard.dart';
-import 'package:histo_patho_app/utils/systemdetailpage.dart';
+import 'package:histo_patho_app/screens/systemdetailpage.dart';
 import 'package:histo_patho_app/screens/quiz/quiz_management_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -20,16 +20,19 @@ class _DashBoardState extends State<DashBoardPage> {
     setState(() {
       _selectedIndex = index;
     });
-
     if (index == 2) {
-      // Get the current user
       User? user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        // Fetch the user's data from Firestore
         FirebaseFirestore.instance.collection('users').doc(user.uid).get().then((docSnapshot) {
           if (docSnapshot.exists) {
             String userType = docSnapshot.data()?['userType'] ?? '';
-            if (['teacher','admin'].contains(userType.toLowerCase())) {
+            if (["admin"].contains(userType.toLowerCase())) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => QuizManagementScreen(isAdmin: true)),
+              );
+            } else if (['teacher'].contains(userType.toLowerCase())) {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => QuizManagementScreen()),
@@ -40,26 +43,22 @@ class _DashBoardState extends State<DashBoardPage> {
                 MaterialPageRoute(builder: (context) => QuizListScreen()),
               );
             } else {
-              // Handle case where userType is neither teacher nor student
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Invalid user type. Please contact support.')),
               );
             }
           } else {
-            // Handle case where user document doesn't exist
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('User profile not found. Please update your profile.')),
             );
           }
         }).catchError((error) {
-          // Handle any errors in fetching the user data
           print("Error fetching user data: $error");
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('An error occurred. Please try again later.')),
           );
         });
       } else {
-        // Handle case where user is not logged in
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Please log in to access this feature.')),
         );
@@ -71,8 +70,9 @@ class _DashBoardState extends State<DashBoardPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Educational App'),
-        backgroundColor: Colors.cyan,
+        title: Text('SlideScholar'),
+        centerTitle: true,
+        backgroundColor: Colors.greenAccent,
       ),
       drawer: _buildDrawer(),
       body: CustomScrollView(
@@ -129,7 +129,7 @@ class _DashBoardState extends State<DashBoardPage> {
           ),
         ],
         currentIndex: _selectedIndex,
-        selectedItemColor: Colors.cyan,
+        selectedItemColor: Colors.greenAccent,
         onTap: _onItemTapped,
       ),
     );
@@ -164,7 +164,7 @@ class _DashBoardState extends State<DashBoardPage> {
                   ),
                 ),
                 SizedBox(height: 8),
-                FutureBuilder<String>(
+                FutureBuilder(
                   future: _getUserName(),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
@@ -186,7 +186,7 @@ class _DashBoardState extends State<DashBoardPage> {
                 MaterialPageRoute(builder: (context) => ProfilePage()),
               );
             },
-            child: Icon(Icons.person, size: 50, color: Colors.cyan),
+            child: Icon(Icons.person, size: 50, color: Colors.black),
           ),
         ],
       ),
@@ -220,15 +220,15 @@ class _DashBoardState extends State<DashBoardPage> {
     return Drawer(
       child: ListView(
         padding: EdgeInsets.zero,
-        children: <Widget>[
+        children: [
           DrawerHeader(
             decoration: BoxDecoration(
-              color: Colors.cyan,
+              color: Colors.greenAccent,
             ),
             child: Text(
               'Menu',
               style: TextStyle(
-                color: Colors.white,
+                color: Colors.black,
                 fontSize: 24,
               ),
             ),

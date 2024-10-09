@@ -1,281 +1,267 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:zoom_hover_pinch_image/zoom_hover_pinch_image.dart';
 
 class DetailPage extends StatefulWidget {
   final Map<String, dynamic> slideData;
 
-  const DetailPage({Key? key, required this.slideData}) : super(key: key);
+  DetailPage({required this.slideData});
 
   @override
   _DetailPageState createState() => _DetailPageState();
 }
 
 class _DetailPageState extends State<DetailPage> {
-  bool _showQuiz = false;
-  int _currentImageIndex = 0;
-  List<String?> _selectedAnswers = [];
-  bool _isSubmitted = false;
-  late List<String> images;
-
-  @override
-  void initState() {
-    super.initState();
-    images = List<String>.from(widget.slideData['image_labelled'] as List<dynamic>? ?? []);
-    List<dynamic> questions = widget.slideData['questions'] as List<dynamic>? ?? [];
-    _selectedAnswers = List.filled(questions.length, null);
-  }
+  bool isChecked = false;
+  int currentImageIndex = 0;
+  int currentQuestionIndex = 0;
+  Map<String, String> userAnswers = {};
 
   @override
   Widget build(BuildContext context) {
+    List<String> imageLabelledList = List<String>.from(widget.slideData['image_labelled'] as List<dynamic>? ?? []);
+    List<String> imageUnlabelledList = List<String>.from(widget.slideData['image_unlabelled'] as List<dynamic>? ?? []);
+    List<Map<String, dynamic>> questions = List<Map<String, dynamic>>.from(widget.slideData['questions'] ?? []);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.slideData['title'] ?? 'Detail'),
       ),
       body: SingleChildScrollView(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              height: 300, // Adjust this value as needed
-              child: Stack(
-                children: [
-                  GestureDetector(
-                    onHorizontalDragEnd: (details) {
-                      if (details.primaryVelocity! > 0 && _currentImageIndex > 0) {
-                        setState(() {
-                          _currentImageIndex--;
-                        });
-                      } else if (details.primaryVelocity! < 0 && _currentImageIndex < images.length - 1) {
-                        setState(() {
-                          _currentImageIndex++;
-                        });
-                      }
-                    },
-                    child: InteractiveViewer(
-                      minScale: 0.5,
-                      maxScale: 4.0,
-                      child: images.isNotEmpty
-                          ? CachedNetworkImage(
-                        imageUrl: images[_currentImageIndex],
-                        fit: BoxFit.contain,
-                      )
-                          : Center(child: Text('No image available')),
-                    ),
-                  ),
-                  _buildFullScreenButton(),
-                ],
+            Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text(
+                widget.slideData['description'] ?? 'No description available',
+                style: TextStyle(fontSize: 16),
               ),
             ),
-            PageIndicator(
-              currentIndex: _currentImageIndex,
-              itemCount: images.length,
+            Stack(
+              children: [
+                Center(
+                  child: FittedBox(
+                    fit: BoxFit.contain,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(5, 0, 5, 0),
+                      child: SizedBox(
+                        width: MediaQuery.of(context).size.width,
+                        height: MediaQuery.of(context).size.height * 0.6,
+                        child: Zoom(
+                          clipBehavior: true,
+                          width: MediaQuery.of(context).size.width,
+                          child: Stack(
+                            children: [
+                              SizedBox(
+                                width: MediaQuery.of(context).size.width,
+                                height: MediaQuery.of(context).size.height * 0.6,
+                                child: CachedNetworkImage(
+                                  imageUrl: imageLabelledList[currentImageIndex],
+                                  fit: BoxFit.contain,
+                                  placeholder: (context, url) => CircularProgressIndicator(),
+                                  errorWidget: (context, url, error) => Icon(Icons.error),
+                                ),
+                              ),
+                              if (!isChecked)
+                                SizedBox(
+                                  width: MediaQuery.of(context).size.width,
+                                  height: MediaQuery.of(context).size.height * 0.6,
+                                  child: CachedNetworkImage(
+                                    imageUrl: imageUnlabelledList[currentImageIndex],
+                                    fit: BoxFit.contain,
+                                    placeholder: (context, url) => CircularProgressIndicator(),
+                                    errorWidget: (context, url, error) => Icon(Icons.error),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 50,
+                  left: 0,
+                  right: 0,
+                  child: _buildCheckbox(),
+                ),
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: _buildImageControls(imageLabelledList.length),
+                ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(widget.slideData['description'] ?? 'No description available'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                setState(() {
-                  _showQuiz = !_showQuiz;
-                  _isSubmitted = false;
-                });
-              },
-              child: Text(_showQuiz ? 'Hide Quiz' : 'Quiz Yourself'),
-            ),
-            if (_showQuiz) _buildQuizSection(),
+            if (questions.isNotEmpty) ...[
+              Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Text(
+                  'Quiz',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+              ),
+              _buildQuizQuestion(questions[currentQuestionIndex]),
+              _buildQuizControls(questions.length),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _buildFullScreenButton() {
-    return Positioned(
-      top: 8,
-      right: 8,
-      child: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.black.withOpacity(0.3),
-        ),
-        child: IconButton(
-          icon: Icon(Icons.fullscreen, color: Colors.white, size: 18),
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => FullScreenImageViewer(
-                  imageUrl: images[_currentImageIndex],
-                ),
-              ),
-            );
-          },
-        ),
+  Widget _buildCheckbox() {
+    return Center(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Checkbox(
+            value: isChecked,
+            onChanged: (bool? newValue) {
+              setState(() {
+                isChecked = newValue ?? false;
+              });
+            },
+          ),
+          Text("Toggle Labels", style: TextStyle(color: Colors.black)),
+        ],
       ),
     );
   }
 
-  Widget _buildQuizSection() {
-    List<dynamic> questions = widget.slideData['questions'] as List<dynamic>? ?? [];
+  Widget _buildImageControls(int imageCount) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        IconButton(
+          icon: Icon(Icons.arrow_back_ios),
+          onPressed: currentImageIndex > 0
+              ? () {
+            setState(() {
+              currentImageIndex--;
+            });
+          }
+              : null,
+        ),
+        Text("${currentImageIndex + 1}/$imageCount"),
+        IconButton(
+          icon: Icon(Icons.arrow_forward_ios),
+          onPressed: currentImageIndex < imageCount - 1
+              ? () {
+            setState(() {
+              currentImageIndex++;
+            });
+          }
+              : null,
+        ),
+      ],
+    );
+  }
 
-    if (questions.isEmpty) {
-      return Text('No questions available');
-    }
-
+  Widget _buildQuizQuestion(Map<String, dynamic> question) {
     return Card(
       margin: EdgeInsets.all(16),
       child: Padding(
         padding: EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ...questions.asMap().entries.map((entry) {
-              int index = entry.key;
-              Map<String, dynamic> question = entry.value as Map<String, dynamic>;
-
-              return Card(
-                margin: EdgeInsets.only(bottom: 16),
-                child: Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Question ${index + 1}: ${question['text']}',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      if (question['image'] != null)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8.0),
-                          child: CachedNetworkImage(
-                            imageUrl: question['image'],
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                      ...(question['options'] as List<dynamic>).map((option) {
-                        return RadioListTile<String>(
-                          title: Text(option),
-                          value: option,
-                          groupValue: _selectedAnswers[index],
-                          onChanged: _isSubmitted ? null : (value) {
-                            setState(() {
-                              _selectedAnswers[index] = value;
-                            });
-                          },
-                        );
-                      }).toList(),
-                      if (_isSubmitted)
-                        Container(
-                          padding: EdgeInsets.all(8),
-                          color: _selectedAnswers[index] == question['correctAnswer']
-                              ? Colors.green.withOpacity(0.1)
-                              : Colors.red.withOpacity(0.1),
-                          child: Text(
-                            _selectedAnswers[index] == question['correctAnswer']
-                                ? 'Correct!'
-                                : 'Incorrect. The correct answer is: ${question['correctAnswer']}',
-                            style: TextStyle(
-                              color: _selectedAnswers[index] == question['correctAnswer']
-                                  ? Colors.green
-                                  : Colors.red,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
+            Text(
+              question['text'],
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 16),
+            if (question['image'] != null)
+              CachedNetworkImage(
+                imageUrl: question['image'],
+                height: 200,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => CircularProgressIndicator(),
+                errorWidget: (context, url, error) => Icon(Icons.error),
+              ),
+            SizedBox(height: 16),
+            ...question['options'].map<Widget>((option) {
+              return RadioListTile<String>(
+                title: Text(option),
+                value: option,
+                groupValue: userAnswers[question['text']],
+                onChanged: (value) {
+                  setState(() {
+                    userAnswers[question['text']] = value!;
+                  });
+                },
               );
             }).toList(),
-            SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _isSubmitted ? null : () {
-                setState(() {
-                  _isSubmitted = true;
-                });
-              },
-              child: Text('Submit'),
-            ),
-            SizedBox(height: 8),
-            OutlinedButton(
-              onPressed: () {
-                setState(() {
-                  _selectedAnswers = List.filled(questions.length, null);
-                  _isSubmitted = false;
-                });
-              },
-              child: Text('Reset'),
-            ),
           ],
         ),
       ),
     );
   }
-}
 
-
-class PageIndicator extends StatelessWidget {
-  final int currentIndex;
-  final int itemCount;
-
-  const PageIndicator({
-    Key? key,
-    required this.currentIndex,
-    required this.itemCount,
-  }) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(vertical: 10),
+  Widget _buildQuizControls(int questionCount) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(
-          itemCount,
-              (index) => Container(
-            margin: EdgeInsets.symmetric(horizontal: 4),
-            width: index == currentIndex ? 10 : 8,
-            height: index == currentIndex ? 10 : 8,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: index == currentIndex
-                  ? Theme.of(context).primaryColor
-                  : Colors.grey.withOpacity(0.5),
-            ),
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          ElevatedButton(
+            onPressed: currentQuestionIndex > 0
+                ? () {
+              setState(() {
+                currentQuestionIndex--;
+              });
+            }
+                : null,
+            child: Text('Previous'),
           ),
-        ),
+          Text('${currentQuestionIndex + 1}/$questionCount'),
+          ElevatedButton(
+            onPressed: currentQuestionIndex < questionCount - 1
+                ? () {
+              setState(() {
+                currentQuestionIndex++;
+              });
+            }
+                : () {
+              _submitQuiz();
+            },
+            child: Text(currentQuestionIndex < questionCount - 1 ? 'Next' : 'Submit'),
+          ),
+        ],
       ),
     );
   }
-}
 
-class FullScreenImageViewer extends StatelessWidget {
-  final String imageUrl;
+  void _submitQuiz() {
+    // Calculate score
+    int score = 0;
+    List<Map<String, dynamic>> questions = List<Map<String, dynamic>>.from(widget.slideData['questions'] ?? []);
+    for (var question in questions) {
+      if (userAnswers[question['text']] == question['correctAnswer']) {
+        score++;
+      }
+    }
 
-  const FullScreenImageViewer({Key? key, required this.imageUrl}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: GestureDetector(
-        onTap: () => Navigator.pop(context),
-        child: Center(
-          child: InteractiveViewer(
-            minScale: 1.0,
-            maxScale: 4.0,
-            child: CachedNetworkImage(
-              imageUrl: imageUrl,
-              fit: BoxFit.contain,
-              width: MediaQuery.of(context).size.width,
-              height: MediaQuery.of(context).size.height,
+    // Show result dialog
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Quiz Result'),
+          content: Text('Your score: $score/${questions.length}'),
+          actions: [
+            TextButton(
+              child: Text('OK'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
             ),
-          ),
-        ),
-      ),
+          ],
+        );
+      },
     );
   }
 }
